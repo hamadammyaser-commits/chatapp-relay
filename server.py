@@ -19,13 +19,11 @@ async def chat_relay(websocket):
         CONNECTED_CLIENTS.remove(websocket)
 
 async def health_check(connection, request):
-    # Safely answer any non-websocket or HTTP health check request from UptimeRobot
-    # without crashing on missing attributes.
-    return connection.respond(http.HTTPStatus.OK, b"Server is Awake!\n")
+    # Standard way to return a 200 OK for HTTP/health checks
+    return http.HTTPStatus.OK, [("Content-Type", "text/plain")], b"Server is Awake!\n"
 
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    # Use the modern websockets server handler
     async with websockets.serve(chat_relay, "0.0.0.0", port, process_request=health_check):
         await asyncio.Future()
 
