@@ -19,8 +19,12 @@ async def chat_relay(websocket):
         CONNECTED_CLIENTS.remove(websocket)
 
 async def health_check(connection, request):
-    # Standard way to return a 200 OK for HTTP/health checks
-    return http.HTTPStatus.OK, [("Content-Type", "text/plain")], b"Server is Awake!\n"
+    # If the app or client is trying to open a WebSocket chat connection, let it through (return None)
+    if request.headers.get("Upgrade", "").lower() == "websocket":
+        return None
+    
+    # Otherwise, it's an HTTP ping from UptimeRobot, so reply with 200 OK
+    return connection.respond(http.HTTPStatus.OK, "Server is Awake!")
 
 async def main():
     port = int(os.environ.get("PORT", 10000))
