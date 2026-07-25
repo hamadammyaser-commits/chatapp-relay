@@ -3,6 +3,7 @@ import http
 import os
 import json
 import websockets
+from websockets.asyncio.server import serve
 from supabase import create_client, Client
 
 SUPABASE_URL = "https://ujsstymgjiujuncbmjup.supabase.co"
@@ -12,15 +13,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 CONNECTED_CLIENTS = {}  # Maps username -> websocket
 
 
-# --- Render Health Check Interceptor ---
-async def health_check(connection, request):
-    # If the request is a standard HTTP health check (missing the WebSocket Upgrade header)
-    if "Upgrade" not in request.headers:
-        return (
-            http.HTTPStatus.OK,
-            [("Content-Type", "text/plain")],
-            b"Relay server is active and running!",
-        )
+# --- Modern Render Health Check Interceptor ---
+def health_check(connection, request):
+    # Intercept non-WebSocket HTTP requests (Render health checks)
+    if "Upgrade" not in request.headers or request.headers.get("Upgrade", "").lower() != "websocket":
+        return connection.respond(http.HTTPStatus.OK, b"Relay server is active and running!")
     return None
 
 
@@ -106,8 +103,8 @@ async def chat_relay(websocket):
 
 async def main():
     port = int(os.environ.get("PORT", 8080))
-    # Pass process_request=health_check to cleanly handle Render's HTTP health checks
-    async with websockets.serve(chat_relay, "0.0.0.0", port, process_request=health_check):
+    # Pass process_request=health_check using the modern asyncio serve API
+    async with serve(chat_relay, "0.0.0.0", port, process_request=health_check):
         print(f"🚀 Secure Relay Server running on port {port}")
         await asyncio.Future()
 
