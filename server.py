@@ -23,6 +23,27 @@ async def chat_relay(websocket):
                     CONNECTED_CLIENTS[current_username] = websocket
                     print(f"✅ User identified: {current_username}")
 
+                elif msg_type == "PROFILE_UPDATE":
+                    sender = (data.get("sender") or "").strip().lower()
+                    avatar_b64 = data.get("avatar", "")
+
+                    if not sender:
+                        continue
+
+                    print(f"🔄 Broadcasting profile picture update from {sender} to all connected peers...")
+                    
+                    # Fan out the profile update to all connected clients except the sender
+                    for peer_name, peer_ws in list(CONNECTED_CLIENTS.items()):
+                        if peer_name != sender:
+                            try:
+                                await peer_ws.send(json.dumps({
+                                    "type": "PROFILE_UPDATE",
+                                    "sender": sender,
+                                    "avatar": avatar_b64
+                                }))
+                            except Exception as ex:
+                                print(f"⚠️ Failed to forward profile update to {peer_name}: {ex}")
+
                 elif msg_type == "CHAT_MESSAGE":
                     sender = (data.get("sender") or "").strip().lower()
                     recipient = (data.get("recipient") or "").strip().lower()
