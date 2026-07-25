@@ -31,11 +31,10 @@ async def chat_relay(websocket):
                     if not sender or not recipient:
                         continue
 
-                    # SECURITY CHECK: Verify in Supabase user_peer table
+                    # SECURITY CHECK: Verify in Supabase user_peer table (Bidirectional check)
                     response = supabase.table("user_peer") \
                         .select("*") \
-                        .eq("owner", sender) \
-                        .eq("peer", recipient) \
+                        .or_(f"and(owner.eq.{sender},peer.eq.{recipient}),and(owner.eq.{recipient},peer.eq.{sender})") \
                         .eq("status", "accepted") \
                         .execute()
 
