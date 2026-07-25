@@ -27,6 +27,7 @@ async def chat_relay(websocket):
                     sender = (data.get("sender") or "").strip().lower()
                     recipient = (data.get("recipient") or "").strip().lower()
                     text_content = data.get("text", "")
+                    enc_key_b64 = data.get("enc_key") # Captured encrypted session key
 
                     if not sender or not recipient:
                         continue
@@ -46,15 +47,16 @@ async def chat_relay(websocket):
                         }))
                         continue
 
-                    # Route message if recipient is online
+                    # Route encrypted payload and session key if recipient is online
                     recipient_ws = CONNECTED_CLIENTS.get(recipient)
                     if recipient_ws:
                         await recipient_ws.send(json.dumps({
                             "type": "CHAT_MESSAGE",
                             "sender": sender,
-                            "text": text_content
+                            "text": text_content,
+                            "enc_key": enc_key_b64 # Forwarding encryption key securely
                         }))
-                        print(f"📩 Relayed message from {sender} -> {recipient}")
+                        print(f"📩 Relayed secure encrypted message from {sender} -> {recipient}")
                     else:
                         print(f"⚠️ Recipient {recipient} is offline.")
 
