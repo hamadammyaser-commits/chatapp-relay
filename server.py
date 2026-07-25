@@ -1,34 +1,77 @@
 import asyncio
 import os
-import http
+import json
 import websockets
+from supabase import create_client, Client
 
-CONNECTED_CLIENTS = set()
+SUPABASE_URL = "https://ujsstymgjiujuncbmjup.supabase.co"
+SUPABASE_KEY = "sb_publishable_u1ULnHat4qspvro5DfLdBg_P-enIw1m"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+CONNECTED_CLIENTS = {} # Maps username -> websocket
 
 async def chat_relay(websocket):
-    CONNECTED_CLIENTS.add(websocket)
+    current_username = None
     try:
         async for message in websocket:
-            for client in CONNECTED_CLIENTS:
-                if client != websocket:
-                    try:
-                        await client.send(message)
-                    except Exception:
-                        pass
-    finally:
-        CONNECTED_CLIENTS.remove(websocket)
+            try:
+                data = json.loads(message)
+                msg_type = data.get("type")
 
-async def health_check(connection, request):
-    # If the app or client is trying to open a WebSocket chat connection, let it through (return None)
-    if request.headers.get("Upgrade", "").lower() == "websocket":
-        return None
-    
-    # Otherwise, it's an HTTP ping from UptimeRobot, so reply with 200 OK
-    return connection.respond(http.HTTPStatus.OK, "Server is Awake!")
+                if msg_type == "IDENTIFY":
+                    current_username = (data.get("username") or "").strip().lower()
+                    CONNECTED_CLIENTS[current_username] = websocket
+                    print(f"✅ User identified: {current_username}")
+
+                elif msg_type == "CHAT_MESSAGE":
+                    sender = (data.get("sender") or "").strip().lower()
+                    recipient = (data.get("recipient") or "").strip().lower()
+                    text_content = data.get("text", "")
+
+                    if not sender or not recipient:
+                        continue
+
+                    # SECURITY CHECK: Verify in Supabase user_peer table
+                    response = supabase.table("user_peer") \
+                        .select("*") \
+                        .eq("owner", sender) \
+                        .eq("peer", recipient) \
+                        .eq("status", "accepted") \
+                        .execute()
+
+                    if not response.data:
+                        print(f"🚫 Blocked message from {sender} to {recipient} (Not connected/accepted)")
+                        await websocket.send(json.dumps({
+                            "type": "ERROR",
+                            "text": "Message blocked: Peer connection not accepted."
+                        }))
+                        continue
+
+                    # Route message if recipient is online
+                    recipient_ws = CONNECTED_CLIENTS.get(recipient)
+                    if recipient_ws:
+                        await recipient_ws.send(json.dumps({
+                            "type": "CHAT_MESSAGE",
+                            "sender": sender,
+                            "text": text_content
+                        }))
+                        print(f"📩 Relayed message from {sender} -> {recipient}")
+                    else:
+                        print(f"⚠️ Recipient {recipient} is offline.")
+
+            except json.JSONDecodeError:
+                pass
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        if current_username and current_username in CONNECTED_CLIENTS:
+            del CONNECTED_CLIENTS[current_username]
+            print(f"❌ User disconnected: {current_username}")
 
 async def main():
-    port = int(os.environ.get("PORT", 10000))
-    async with websockets.serve(chat_relay, "0.0.0.0", port, process_request=health_check):
+    port = int(os.environ.get("PORT", 8080))
+    async with websockets.serve(chat_relay, "0.0.0.0", port):
+        print(f"🚀 Secure Relay Server running on port {port}")
         await asyncio.Future()
 
 if __name__ == "__main__":
