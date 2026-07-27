@@ -1,5 +1,7 @@
 {
-  "version": "0.0.17",
-  "update_url": "https://github.com/hamadammyaser-commits/chatapp-relay/releases/latest/download/linkgraph-release.apk",
-  "release_notes": "test."
+  "version": "0.0.23",
+  "build_number": 23,
+  "update_url": "https://drive.google.com/uc?export=download&id=YOUR_GOOGLE_DRIVE_FILE_ID",
+  "release_notes": "Update test: improved messaging, media, audio and notifications.",
+  "mandatory": false
 }
