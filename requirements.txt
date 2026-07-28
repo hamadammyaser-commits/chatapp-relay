@@ -1,2 +1,2 @@
-websockets
-supabase
+websockets==13.0.1
+httpx[http2]==0.28.1
